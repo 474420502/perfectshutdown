@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -38,6 +40,23 @@ func New() *PerfectShutdown {
 // IsClose 判断是否要关闭
 func (ps *PerfectShutdown) IsClose() bool {
 	return atomic.LoadInt32(&ps.loop) == 0
+}
+
+// Close 判断是否要关闭
+func (ps *PerfectShutdown) Close() {
+	atomic.StoreInt32(&ps.loop, 0)
+
+	log.Println("perfectshutdown is close !")
+
+	for i := 1; ; i++ {
+		pc, file, line, ok := runtime.Caller(i)
+		Func := runtime.FuncForPC(pc)
+		if strings.HasPrefix(Func.Name(), "runtime.") || !ok {
+			break
+		}
+		log.Printf("%s:%d func %s", file, line, Func.Name())
+	}
+
 }
 
 // Wait 判断是否要关闭
