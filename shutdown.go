@@ -42,7 +42,7 @@ func (ps *PerfectShutdown) IsClose() bool {
 	return atomic.LoadInt32(&ps.loop) == 0
 }
 
-// Close 判断是否要关闭
+// Close 主动关闭
 func (ps *PerfectShutdown) Close() {
 	atomic.StoreInt32(&ps.loop, 0)
 
@@ -59,7 +59,7 @@ func (ps *PerfectShutdown) Close() {
 
 }
 
-// Wait 判断是否要关闭
+// Wait 等待时间. 类似time.Sleep 但是这个可以接受中断的信号
 func (ps *PerfectShutdown) Wait(tm time.Duration) bool {
 	now := time.Now()
 	for time.Now().Sub(now) <= tm {
@@ -71,7 +71,7 @@ func (ps *PerfectShutdown) Wait(tm time.Duration) bool {
 	return true
 }
 
-// SetBefore 判断是否要关闭
+// SetBefore 设置关闭后要处理事件
 func (ps *PerfectShutdown) SetBefore(do func(params interface{}), params interface{}) {
 	ps.before = do
 	ps.beforeparams = params
