@@ -66,10 +66,10 @@ func New() *PerfectShutdown {
 	return ps
 }
 
-func (ps *PerfectShutdown) Loop(do func(ps *PerfectShutdown)) error {
+func (ps *PerfectShutdown) Loop(do func(index int, ps *PerfectShutdown)) error {
 
-	for !ps.IsClose() {
-		do(ps)
+	for n := 0; !ps.IsClose(); n++ {
+		do(n, ps)
 	}
 
 	return nil

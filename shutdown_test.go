@@ -14,7 +14,7 @@ func TestClose(t *testing.T) {
 
 func TestLoop(t *testing.T) {
 	ps := New()
-	ps.Loop(func(ps *PerfectShutdown) {
+	ps.Loop(func(i int, ps *PerfectShutdown) {
 		ps.Wait(time.Second * 2)
 	})
 }
@@ -24,14 +24,14 @@ func TestKill(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		go func() {
-			ps.Loop(func(ps *PerfectShutdown) {
+			ps.Loop(func(i int, ps *PerfectShutdown) {
 				log.Println("Loop")
 				ps.Wait(time.Second * 10)
 			})
 		}()
 	}
 
-	ps.Loop(func(ps *PerfectShutdown) {
+	ps.Loop(func(i int, ps *PerfectShutdown) {
 		log.Println("Loop")
 		ps.Wait(time.Second * 10)
 	})
