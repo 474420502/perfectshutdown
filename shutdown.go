@@ -32,6 +32,8 @@ type PerfectShutdown struct {
 
 	beforeparams interface{}
 	before       func(params interface{})
+
+	onClosed func()
 }
 
 var ps = &PerfectShutdown{loop: 1}
@@ -48,8 +50,8 @@ func New() *PerfectShutdown {
 			if ps.before != nil {
 				ps.before(ps.beforeparams)
 			}
+
 			atomic.StoreInt32(&ps.loop, 0)
-			time.Sleep(time.Second)
 			ps.waitmap.Range(func(key, value interface{}) bool {
 				w := value.(*wait)
 				w.once.Do(func() {
@@ -59,6 +61,10 @@ func New() *PerfectShutdown {
 				})
 				return true
 			})
+
+			if ps.onClosed != nil {
+				ps.onClosed()
+			}
 
 		}()
 	})
@@ -124,4 +130,8 @@ func (ps *PerfectShutdown) Wait(tm time.Duration) (ok bool) {
 		return
 	}
 
+}
+
+func (ps *PerfectShutdown) OnClose(do func()) {
+	ps.onClosed = do
 }
