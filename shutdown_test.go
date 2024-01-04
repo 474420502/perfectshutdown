@@ -9,6 +9,10 @@ import (
 
 func TestClose(t *testing.T) {
 	ps := New()
+	doTask := false
+	ps.OnClosed(func() {
+		doTask = true
+	})
 	go func() {
 		time.Sleep(time.Second * 2)
 		ps.Close()
@@ -20,6 +24,10 @@ func TestClose(t *testing.T) {
 	// 确认IsClose返回true
 	if !ps.IsClose() {
 		t.Errorf("IsClose should return true after Close is called")
+	}
+
+	if doTask == false {
+		t.Errorf("doTask should return true after Close is called")
 	}
 }
 

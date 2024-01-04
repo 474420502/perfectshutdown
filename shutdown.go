@@ -53,7 +53,6 @@ func New() *PerfectShutdown {
 			signal.Notify(signalchan, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 			log.Println("accept stop command:", <-signalchan, " --> wait to shutdown")
 			ps.stopLoop()
-
 		}()
 	})
 
