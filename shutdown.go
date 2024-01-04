@@ -1,3 +1,4 @@
+// 可以多个调用Loop. 关闭后在这个域全部都关闭
 package perfectshutdown
 
 import (
@@ -25,46 +26,33 @@ func newWait(tm time.Duration) *wait {
 
 // PerfectShutdown 完美关闭程序
 type PerfectShutdown struct {
-	loop int32
+	loop          int32
+	loopWaitGruop sync.WaitGroup
 
 	waitmap   sync.Map
 	waitcount uint64
 
-	beforeparams interface{}
-	before       func(params interface{})
+	stopOnce sync.Once
+
+	onBefore func()
 
 	onClosed func()
 }
 
-var ps = &PerfectShutdown{loop: 1}
+// var ps *PerfectShutdown
 var once sync.Once
 
 // New 创建完美关闭程序
 func New() *PerfectShutdown {
 
+	ps := &PerfectShutdown{loop: 1}
+
 	once.Do(func() {
 		go func() {
 			signalchan := make(chan os.Signal, 1)
-			signal.Notify(signalchan, syscall.SIGINT, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGSTOP)
+			signal.Notify(signalchan, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 			log.Println("accept stop command:", <-signalchan, " --> wait to shutdown")
-			if ps.before != nil {
-				ps.before(ps.beforeparams)
-			}
-
-			atomic.StoreInt32(&ps.loop, 0)
-			ps.waitmap.Range(func(key, value interface{}) bool {
-				w := value.(*wait)
-				w.once.Do(func() {
-					// log.Println("once")
-					w.ticker.Stop()
-					close(w.stop)
-				})
-				return true
-			})
-
-			if ps.onClosed != nil {
-				ps.onClosed()
-			}
+			ps.stopLoop()
 
 		}()
 	})
@@ -72,9 +60,15 @@ func New() *PerfectShutdown {
 	return ps
 }
 
-func (ps *PerfectShutdown) Loop(do func(index int, ps *PerfectShutdown)) error {
+func (ps *PerfectShutdown) Loop(do func(index uint64, ps *PerfectShutdown)) error {
 
-	for n := 0; !ps.IsClose(); n++ {
+	ps.loopWaitGruop.Add(1)
+	defer func() {
+		ps.loopWaitGruop.Done()
+		ps.loopWaitGruop.Wait()
+	}()
+
+	for n := uint64(0); !ps.IsClose(); n++ {
 		do(n, ps)
 	}
 
@@ -86,9 +80,41 @@ func (ps *PerfectShutdown) IsClose() bool {
 	return atomic.LoadInt32(&ps.loop) == 0
 }
 
+// IsClose 判断是否要关闭
+func (ps *PerfectShutdown) stopLoop() {
+
+	ps.stopOnce.Do(func() {
+		if ps.onBefore != nil {
+			ps.onBefore()
+		}
+
+		atomic.StoreInt32(&ps.loop, 0)
+		ps.waitmap.Range(func(key, value interface{}) bool {
+			w := value.(*wait)
+			w.once.Do(func() {
+				// log.Println("once")
+				w.ticker.Stop()
+				close(w.stop)
+			})
+			return true
+		})
+
+		go func() {
+			ps.loopWaitGruop.Wait()
+			if ps.onClosed != nil {
+				ps.onClosed()
+			}
+		}()
+
+	})
+
+}
+
 // Close 主动关闭
 func (ps *PerfectShutdown) Close() {
-	atomic.StoreInt32(&ps.loop, 0)
+	defer func() {
+		ps.stopLoop()
+	}()
 
 	log.Println("perfectshutdown: call Close() --> close")
 
@@ -98,7 +124,7 @@ func (ps *PerfectShutdown) Close() {
 		if strings.HasPrefix(Func.Name(), "runtime.") || !ok {
 			break
 		}
-		log.Printf("%s:%d func %s", file, line, Func.Name())
+		log.Printf("showdown at: %s:%d func at: %s", file, line, Func.Name())
 	}
 
 }
@@ -132,6 +158,10 @@ func (ps *PerfectShutdown) Wait(tm time.Duration) (ok bool) {
 
 }
 
-func (ps *PerfectShutdown) OnClose(do func()) {
+func (ps *PerfectShutdown) OnBeforeClose(do func()) {
+	ps.onBefore = do
+}
+
+func (ps *PerfectShutdown) OnClosed(do func()) {
 	ps.onClosed = do
 }

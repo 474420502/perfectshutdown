@@ -15,14 +15,14 @@ func main() {
 
 	for i := 0; i < 5; i++ {
 		go func() {
-			ps.Loop(func(i int, ps *perfectshutdown.PerfectShutdown) {
+			ps.Loop(func(i uint64, ps *perfectshutdown.PerfectShutdown) {
 				log.Println("Loop")
 				ps.Wait(time.Second * 10)
 			})
 		}()
 	}
 
-	ps.Loop(func(i int, ps *perfectshutdown.PerfectShutdown) {
+	ps.Loop(func(i uint64, ps *perfectshutdown.PerfectShutdown) {
 		log.Println("Loop")
 		ps.Wait(time.Second * 10)
 	})
