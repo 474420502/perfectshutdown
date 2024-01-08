@@ -2,6 +2,7 @@
 package perfectshutdown
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -14,7 +15,7 @@ import (
 )
 
 type wait struct {
-	count  uint64
+	waitId string
 	ticker *time.Ticker
 	stop   chan bool
 	once   sync.Once
@@ -22,6 +23,14 @@ type wait struct {
 
 func newWait(tm time.Duration) *wait {
 	return &wait{ticker: time.NewTicker(tm), stop: make(chan bool)}
+}
+
+func (w *wait) Stop() {
+	w.once.Do(func() {
+		// log.Println("once")
+		w.ticker.Stop()
+		close(w.stop)
+	})
 }
 
 // PerfectShutdown 完美关闭程序
@@ -90,11 +99,7 @@ func (ps *PerfectShutdown) stopLoop() {
 		atomic.StoreInt32(&ps.loop, 0)
 		ps.waitmap.Range(func(key, value interface{}) bool {
 			w := value.(*wait)
-			w.once.Do(func() {
-				// log.Println("once")
-				w.ticker.Stop()
-				close(w.stop)
-			})
+			w.Stop()
 			return true
 		})
 
@@ -125,31 +130,54 @@ func (ps *PerfectShutdown) Close() {
 		}
 		log.Printf("showdown at: %s:%d func at: %s", file, line, Func.Name())
 	}
-
 }
 
-// Wait 等待时间. 类似time.Sleep 但是这个可以接受中断的信号. 如果ok == false 信号退出, 或者 call Close()
-func (ps *PerfectShutdown) Wait(tm time.Duration) (ok bool) {
-	ok = false
+func (ps *PerfectShutdown) StopAllWait() {
+	ps.waitmap.Range(func(key, value any) bool {
+		w := value.(*wait)
+		w.Stop()
+		return true
+	})
+}
+
+func (ps *PerfectShutdown) StopWait(skey string) {
+	ps.waitmap.Range(func(key, value any) bool {
+		if strings.HasPrefix(key.(string), skey+"-") {
+			w := value.(*wait)
+			w.Stop()
+		}
+		return true
+	})
+}
+
+// WaitKey 和  Wait 区别就是 Wait的key默认是"", 等待时间. 会把这个等待的时间记录到该对应的key上. 类似time.Sleep 但是这个可以接受中断的信号. 如果isContinue == false 信号退出, 或者 call Close()
+func (ps *PerfectShutdown) WaitKey(key string, tm time.Duration) (isContinue bool) {
+	return ps.waitKey(key, tm)
+}
+
+// Wait 等待时间. 类似time.Sleep 但是这个可以接受中断的信号. 如果isContinue == false 信号退出, 或者 call Close()
+func (ps *PerfectShutdown) Wait(tm time.Duration) (isContinue bool) {
+	return ps.waitKey("", tm)
+}
+
+// Wait 等待时间. 类似time.Sleep 但是这个可以接受中断的信号. 如果isContinue == false 信号退出, 或者 call Close()
+func (ps *PerfectShutdown) waitKey(key string, tm time.Duration) (isContinue bool) {
+	isContinue = false
 	if ps.IsClose() {
 		return
 	}
 
 	w := newWait(tm)
-	w.count = atomic.AddUint64(&ps.waitcount, 1)
-	ps.waitmap.Store(w.count, w)
-
+	w.waitId = fmt.Sprintf("%s-%d", key, atomic.AddUint64(&ps.waitcount, 1))
+	ps.waitmap.Store(w.waitId, w)
 	defer func() {
-		w.once.Do(func() {
-			w.ticker.Stop()
-			close(w.stop)
-			ps.waitmap.Delete(w.count)
-		})
+		w.Stop()
+		ps.waitmap.Delete(w.waitId)
 	}()
 
 	select {
 	case <-w.ticker.C:
-		ok = true
+		isContinue = true
 		return
 	case <-w.stop:
 		return

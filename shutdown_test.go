@@ -247,3 +247,40 @@ func TestPerfectShutdown_Wait2(t *testing.T) {
 		t.Errorf("Expected Wait to wait for approximately 2 seconds, but got %s", elapsed)
 	}
 }
+
+func TestPerfectShutdown_Stop(t *testing.T) {
+	ps := New()
+
+	go func() {
+		time.Sleep(time.Second * 1)
+		ps.StopWait("xx")
+		time.Sleep(time.Second * 1)
+		ps.StopAllWait()
+	}()
+
+	start := time.Now()
+
+	ps.Loop(func(index uint64, ps *PerfectShutdown) {
+		start := time.Now()
+		ps.WaitKey("xx", time.Second*4)
+		elapsed := time.Since(start)
+		if elapsed < time.Second || elapsed > 3*time.Second {
+			t.Errorf("Expected Wait to wait for approximately 2 seconds, but got %s", elapsed)
+		}
+
+		start = time.Now()
+		ps.Wait(time.Second * 4)
+		elapsed = time.Since(start)
+		if elapsed < time.Second || elapsed > 3*time.Second {
+			t.Errorf("Expected Wait to wait for approximately 2 seconds, but got %s", elapsed)
+		}
+		ps.Close()
+	})
+
+	elapsed := time.Since(start)
+	// log.Println(elapsed)
+	if elapsed < time.Second || elapsed > 3*time.Second {
+		t.Errorf("Expected Wait to wait for approximately 2 seconds, but got %s", elapsed)
+	}
+
+}
