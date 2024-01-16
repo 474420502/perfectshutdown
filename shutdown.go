@@ -61,6 +61,7 @@ func New() *PerfectShutdown {
 			signalchan := make(chan os.Signal, 1)
 			signal.Notify(signalchan, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 			log.Println("accept stop command:", <-signalchan, " --> wait to shutdown")
+			signal.Stop(signalchan)
 			ps.stopLoop()
 		}()
 	})
